@@ -1,4 +1,4 @@
-/* USER CODE BEGIN Header */
+/* USER CODE BEGIN Header Keren Gamarro 23546 Juego de carreritas*/
 /**
   ******************************************************************************
   * @file           : main.c
@@ -10,16 +10,16 @@
   * All rights reserved.
   *
   ******************************************************************************/
-#include "main.h"
+#include "main.h" //bibliotecas necesarias para que funcione
 #include <string.h>
 #include <stdio.h>
 
-#define DEBOUNCE_MS 200
-#define MAX_DECADA 3 // 0..3 = 4 decadas
+#define DEBOUNCE_MS 200 //antirebote
+#define MAX_DECADA 3 // 0..3 = 4 decadas cuantas decadas como maximo puede avanzar
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-volatile uint8_t startGame = 0;
+volatile uint8_t startGame = 0; //variables volatiles para que se consuman y cambien
 volatile uint8_t semaforoFinalizado = 0;
 volatile uint8_t juegoActivo = 0; // 1 cuando semáforo terminó y contadores pueden incrementarse
 
@@ -33,7 +33,7 @@ char uartMsgBuf[64];
 
 uint8_t rxData;
 
-uint8_t flagGanador = 0;    // 🔹 indica si ya hay ganador
+uint8_t flagGanador = 0;    //  indica si ya hay ganador
 
 
 /* USER CODE END PV */
@@ -43,7 +43,7 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
-void iniciarSemaforo(void);
+void iniciarSemaforo(void); //funciones para que funcione, una para iniciar el semaforo, los contadores y reiniciar el juego al mandarle el comando s
 void mostrarContadorJ1(uint8_t decada);
 void mostrarContadorJ2(uint8_t decada);
 void reiniciarJuego(void);
@@ -51,7 +51,7 @@ void reiniciarJuego(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* --- Mostrar contador Jugador 1 --- */
-void mostrarContadorJ1(uint8_t decada)
+void mostrarContadorJ1(uint8_t decada) //los leds inician apagados y luego se lista los casos del contador
 {
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET);
@@ -67,8 +67,8 @@ void mostrarContadorJ1(uint8_t decada)
     }
 }
 
-/* --- Mostrar contador Jugador 2 --- */
-void mostrarContadorJ2(uint8_t decada)
+/* --- Mostrar contador Jugador 2 --- */ 
+void mostrarContadorJ2(uint8_t decada) //lo mismo aqui
 {
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_RESET);
@@ -94,20 +94,16 @@ void reiniciarJuego(void)
     lastPressJ1 = 0;
     lastPressJ2 = 0;
 
-    // 🔹 No mostramos los contadores aquí aún (para que no enciendan durante el semáforo)
-    // mostrarContadorJ1(contadorJ1);
-    // mostrarContadorJ2(contadorJ2);
-
     const char *msg = "Juego reiniciado. Presiona 'S' para iniciar semáforo.\r\n";
     HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
 }
 
 /* --- Semáforo (bloqueante) --- */
-void iniciarSemaforo(void)
+void iniciarSemaforo(void) //funcion para que se inicie el semaforo 
 {
     semaforoFinalizado = 0;
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET); // Rojo
-    HAL_Delay(1000);
+    HAL_Delay(1000); //tiempo entre cada uno para que se apaguen y reinicien
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
 
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_SET); // Amarillo
@@ -121,7 +117,7 @@ void iniciarSemaforo(void)
     semaforoFinalizado = 1;
     juegoActivo = 1; // activar contadores
 
-    // 🔹 Mostrar LEDs de la primera década *hasta aquí*, después del semáforo
+    // Mostrar LEDs de la primera década *hasta aquí*, después del semáforo
     mostrarContadorJ1(contadorJ1);
     mostrarContadorJ2(contadorJ2);
 
