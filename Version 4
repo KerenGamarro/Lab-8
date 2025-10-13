@@ -1,0 +1,202 @@
+/* USER CODE BEGIN Header */
+/**
+  ******************************************************************************
+  * @file           : main.c
+  * @brief          : Main program body
+  ******************************************************************************
+  * @attention
+  *
+  * Copyright (c) 2025 STMicroelectronics.
+  * All rights reserved.
+  *
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
+  *
+  ******************************************************************************
+  */
+/* USER CODE END Header */
+/* Includes ------------------------------------------------------------------*/
+#include "main.h"
+
+/* Private includes ----------------------------------------------------------*/
+/* USER CODE BEGIN Includes */
+#include <string.h>
+#include <stdio.h>
+/* USER CODE END Includes */
+
+/* Private typedef -----------------------------------------------------------*/
+/* USER CODE BEGIN PTD */
+
+/* USER CODE END PTD */
+
+/* Private define ------------------------------------------------------------*/
+/* USER CODE BEGIN PD */
+
+/* USER CODE END PD */
+
+/* Private macro -------------------------------------------------------------*/
+/* USER CODE BEGIN PM */
+
+/* USER CODE END PM */
+
+/* Private variables ---------------------------------------------------------*/
+UART_HandleTypeDef huart2;
+
+/* USER CODE BEGIN PV */
+/* Flags y variables globales */
+volatile uint8_t inicioCompletado = 0;      // Parte A
+volatile uint8_t contadorJ1 = 0;            // Parte B
+volatile uint8_t contadorJ2 = 0;            // Parte C
+volatile uint32_t lastPress1 = 0;
+volatile uint32_t lastPress2 = 0;
+
+
+/* USER CODE END PV */
+
+/* Private function prototypes -----------------------------------------------*/
+void SystemClock_Config(void);
+static void MX_GPIO_Init(void);
+static void MX_USART2_UART_Init(void);
+void iniciarSemaforo(void);
+void mostrarContadorJ1(uint8_t valor);
+void mostrarContadorJ2(uint8_t valor);
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin);
+void Error_Handler(void);
+
+
+
+/* USER CODE BEGIN PFP */
+
+/* USER CODE END PFP */
+
+/* Private user code ---------------------------------------------------------*/
+/* USER CODE BEGIN 0 */
+// === Parte A: rutina de inicio (semáforo) ===
+void iniciarSemaforo(void) {
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);   // Rojo
+    HAL_Delay(1000);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
+
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_SET);  // Amarillo
+    HAL_Delay(1000);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_RESET);
+
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_SET);   // Verde
+    HAL_Delay(1000);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_RESET);
+
+    inicioCompletado = 1; // Activar contadores de jugadores
+}
+
+// === Parte B: mostrar contador Jugador 1 (4 bits) ===
+void mostrarContadorJ1(uint8_t valor) {
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8,  (valor & 0x01) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9,  (valor & 0x02) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5,  (valor & 0x04) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6,  (valor & 0x08) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+}
+
+// === Parte C: mostrar contador Jugador 2 (décadas) ===
+void mostrarContadorJ2(uint8_t valor) {
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7,  (valor & 0x01) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6,  (valor & 0x02) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7,  (valor & 0x04) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9,  (valor & 0x08) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+}
+
+// === Manejo de botones con interrupciones y anti-rebote ===
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+    uint32_t ahora = HAL_GetTick();
+
+    // Jugador 1 (PA0)
+    if (GPIO_Pin == GPIO_PIN_0 && inicioCompletado) {
+        if (ahora - lastPress1 > 200) { // Anti-rebote 200ms
+            contadorJ1 = (contadorJ1 + 1) % 10; // Contador 0-9
+            mostrarContadorJ1(contadorJ1);
+            lastPress1 = ahora;
+        }
+    }
+
+    // Jugador 2 (PA1)
+    if (GPIO_Pin == GPIO_PIN_1 && inicioCompletado) {
+        if (ahora - lastPress2 > 200) { // Anti-rebote 200ms
+            contadorJ2 += 10;
+            if (contadorJ2 > 90) contadorJ2 = 0; // Contador 0-90
+            mostrarContadorJ2(contadorJ2);
+            lastPress2 = ahora;
+        }
+    }
+}
+
+
+
+/* USER CODE END 0 */
+
+/**
+  * @brief  The application entry point.
+  * @retval int
+  */
+int main(void)
+{
+
+  /* USER CODE BEGIN 1 */
+
+  /* USER CODE END 1 */
+
+  /* MCU Configuration--------------------------------------------------------*/
+
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
+
+  /* USER CODE BEGIN Init */
+
+  /* USER CODE END Init */
+
+  /* Configure the system clock */
+  SystemClock_Config();
+
+  /* USER CODE BEGIN SysInit */
+
+  /* USER CODE END SysInit */
+
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  MX_USART2_UART_Init();
+  /* USER CODE BEGIN 2 */
+  // Mensaje inicial por UART
+     char msg[] = "Presiona 'S' para iniciar el juego\r\n";
+     HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+
+     uint8_t rxData;
+
+
+
+  /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
+
+  while (1)
+  {
+	  // Esperar comando 'S' para iniciar semáforo
+	          if (HAL_UART_Receive(&huart2, &rxData, 1, 100) == HAL_OK)
+	          {
+	              if (rxData == 'S' || rxData == 's')
+	              {
+	                  iniciarSemaforo();
+	              }
+	          }
+
+	          HAL_Delay(1);
+	      }
+	  }
+
+
+
+
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
+
+  /* USER CODE END 3 */
