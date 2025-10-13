@@ -1,0 +1,180 @@
+/* USER CODE BEGIN Header */
+/**
+  ******************************************************************************
+  * @file           : main.c
+  * @brief          : Main program body
+  ******************************************************************************
+  * @attention
+  *
+  * Copyright (c) 2025 STMicroelectronics.
+  * All rights reserved.
+  *
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
+  *
+  ******************************************************************************
+  */
+/* USER CODE END Header */
+/* Includes ------------------------------------------------------------------*/
+#include "main.h"
+
+/* Private includes ----------------------------------------------------------*/
+/* USER CODE BEGIN Includes */
+#include <string.h>   // Para strcmp, strlen
+/* USER CODE END Includes */
+
+/* Private typedef -----------------------------------------------------------*/
+/* USER CODE BEGIN PTD */
+
+/* USER CODE END PTD */
+
+/* Private define ------------------------------------------------------------*/
+/* USER CODE BEGIN PD */
+#define LED_ON  GPIO_PIN_SET
+#define LED_OFF GPIO_PIN_RESET
+/* USER CODE END PD */
+
+/* Private macro -------------------------------------------------------------*/
+/* USER CODE BEGIN PM */
+
+/* USER CODE END PM */
+
+/* Private variables ---------------------------------------------------------*/
+UART_HandleTypeDef huart2;
+
+/* USER CODE BEGIN PV */
+uint8_t rxData;            // Dato recibido por UART
+uint8_t startGame = 0;     // Flag de inicio del juego
+
+// Variables LEDs semáforo
+#define semaforo1_Pin GPIO_PIN_8
+#define semaforo1_GPIO_Port GPIOA
+#define semaforo2_Pin GPIO_PIN_10
+#define semaforo2_GPIO_Port GPIOB
+#define semaforo3_Pin GPIO_PIN_4
+#define semaforo3_GPIO_Port GPIOB
+
+// Variables LEDs jugador 1
+#define contador11_Pin GPIO_PIN_8
+#define contador11_GPIO_Port GPIOB
+#define contador12_Pin GPIO_PIN_9
+#define contador12_GPIO_Port GPIOB
+#define contador13_Pin GPIO_PIN_5
+#define contador13_GPIO_Port GPIOA
+#define contador14_Pin GPIO_PIN_6
+#define contador14_GPIO_Port GPIOA
+
+// Variables LEDs jugador 2
+#define contador21_Pin GPIO_PIN_7
+#define contador21_GPIO_Port GPIOA
+#define contador22_Pin GPIO_PIN_6
+#define contador22_GPIO_Port GPIOB
+#define contador23_Pin GPIO_PIN_7
+#define contador23_GPIO_Port GPIOC
+#define contador24_Pin GPIO_PIN_9
+#define contador24_GPIO_Port GPIOA
+
+/* USER CODE END PV */
+
+/* Private function prototypes -----------------------------------------------*/
+void SystemClock_Config(void);
+static void MX_GPIO_Init(void);
+static void MX_USART2_UART_Init(void);
+/* USER CODE BEGIN PFP */
+void rutinaSemaforo(void);
+
+/* USER CODE END PFP */
+
+/* Private user code ---------------------------------------------------------*/
+/* USER CODE BEGIN 0 */
+// Callback que se ejecuta cuando llega un dato por UART
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  if (huart->Instance == USART2)
+  {
+    if (rxData == 'S' || rxData == 's')
+    {
+      startGame = 1;  // Comando de inicio recibido
+      HAL_UART_Transmit(&huart2, (uint8_t *)"Comando S detectado. Iniciando juego...\r\n", 40, 100);
+    }
+    // Volvemos a recibir otro byte
+    HAL_UART_Receive_IT(&huart2, &rxData, 1);
+  }
+}
+
+// Función del semáforo de inicio
+void rutinaSemaforo(void)
+{
+  // LED rojo
+  HAL_GPIO_WritePin(semaforo1_GPIO_Port, semaforo1_Pin, LED_ON);
+  HAL_Delay(1000);
+  HAL_GPIO_WritePin(semaforo1_GPIO_Port, semaforo1_Pin, LED_OFF);
+
+  // LED amarillo
+  HAL_GPIO_WritePin(semaforo2_GPIO_Port, semaforo2_Pin, LED_ON);
+  HAL_Delay(1000);
+  HAL_GPIO_WritePin(semaforo2_GPIO_Port, semaforo2_Pin, LED_OFF);
+
+  // LED verde
+  HAL_GPIO_WritePin(semaforo3_GPIO_Port, semaforo3_Pin, LED_ON);
+  HAL_Delay(1000);
+  HAL_GPIO_WritePin(semaforo3_GPIO_Port, semaforo3_Pin, LED_OFF);
+
+  HAL_UART_Transmit(&huart2, (uint8_t *)"¡Semáforo completado! Empieza el juego.\r\n", 42, 100);
+}
+
+/* USER CODE END 0 */
+
+/**
+  * @brief  The application entry point.
+  * @retval int
+  */
+int main(void)
+{
+
+  /* USER CODE BEGIN 1 */
+
+  /* USER CODE END 1 */
+
+  /* MCU Configuration--------------------------------------------------------*/
+
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
+
+  /* USER CODE BEGIN Init */
+
+  /* USER CODE END Init */
+
+  /* Configure the system clock */
+  SystemClock_Config();
+
+  /* USER CODE BEGIN SysInit */
+
+  /* USER CODE END SysInit */
+
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  MX_USART2_UART_Init();
+  /* USER CODE BEGIN 2 */
+  HAL_UART_Receive_IT(&huart2, &rxData, 1);  // Habilita recepción por interrupción
+    HAL_UART_Transmit(&huart2, (uint8_t *)"Esperando comando 'S' para iniciar...\r\n", 40, 100);
+  /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
+  while (1)
+  {
+	  if (startGame == 1)
+	      {
+	        rutinaSemaforo();
+	        startGame = 0; // Evita repetir
+	      }
+	    }
+	  }
+
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
+
+  /* USER CODE END 3 */
