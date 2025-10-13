@@ -1,0 +1,225 @@
+/* USER CODE BEGIN Header */
+/**
+  ******************************************************************************
+  * @file           : main.c
+  * @brief          : Main program body
+  ******************************************************************************
+  * @attention
+  *
+  * Copyright (c) 2025 STMicroelectronics.
+  * All rights reserved.
+  *
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
+  *
+  ******************************************************************************
+  */
+/* USER CODE END Header */
+/* Includes ------------------------------------------------------------------*/
+#include "main.h"
+
+/* Private includes ----------------------------------------------------------*/
+/* USER CODE BEGIN Includes */
+#include <string.h>
+#include <stdio.h>
+/* USER CODE END Includes */
+
+/* Private typedef -----------------------------------------------------------*/
+/* USER CODE BEGIN PTD */
+
+/* USER CODE END PTD */
+
+/* Private define ------------------------------------------------------------*/
+/* USER CODE BEGIN PD */
+#define DEBOUNCE_MS 200
+/* USER CODE END PD */
+
+/* Private macro -------------------------------------------------------------*/
+/* USER CODE BEGIN PM */
+
+/* USER CODE END PM */
+
+/* Private variables ---------------------------------------------------------*/
+UART_HandleTypeDef huart2;
+
+/* USER CODE BEGIN PV */
+/* Flags y variables globales */
+volatile uint8_t startGame = 0;          // seteará la recepción UART ('S')
+volatile uint8_t semaforoFinalizado = 0; // 1 cuando semáforo termine
+volatile uint8_t contadorJ1 = 0;         // 0..9
+volatile uint32_t lastPressJ1 = 0;
+volatile uint32_t lastPressJ2 = 0;
+
+/* Flags para enviar mensajes por UART desde el main (no en ISR) */
+volatile uint8_t flagSendMsgJ1 = 0;
+char uartMsgBuf[64];
+
+uint8_t rxData; // byte recibido por UART (usado con RxIT)
+
+/* USER CODE END PV */
+
+/* Private function prototypes -----------------------------------------------*/
+void SystemClock_Config(void);
+static void MX_GPIO_Init(void);
+static void MX_USART2_UART_Init(void);
+/* USER CODE BEGIN PFP */
+void iniciarSemaforo(void);
+void mostrarContadorJ1(uint8_t valor);
+/* USER CODE END PFP */
+
+/* Private user code ---------------------------------------------------------*/
+/* USER CODE BEGIN 0 */
+/* --- Mostrar contador Jugador 1 (PB8 PB9 PA5 PA6) --- */
+void mostrarContadorJ1(uint8_t valor)
+{
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, (valor & 0x01) ? GPIO_PIN_SET : GPIO_PIN_RESET); // LSB
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, (valor & 0x02) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, (valor & 0x04) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, (valor & 0x08) ? GPIO_PIN_SET : GPIO_PIN_RESET); // MSB
+}
+
+/* --- Rutina del semáforo (bloqueante, 1 s por LED) --- */
+void iniciarSemaforo(void)
+{
+  semaforoFinalizado = 0;
+
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);   // semaforo1 (rojo)
+  HAL_Delay(1000);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
+
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_SET);  // semaforo2 (amarillo)
+  HAL_Delay(1000);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_RESET);
+
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_SET);   // semaforo3 (verde)
+  HAL_Delay(1000);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_RESET);
+
+  semaforoFinalizado = 1;
+}
+
+/* --- Callback UART: se activa al recibir 1 byte por RxIT --- */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  if (huart->Instance == USART2)
+  {
+    if (rxData == 'S' || rxData == 's')
+    {
+      startGame = 1; // marcar que llegó la orden de iniciar
+    }
+    // rearmar recepción por interrupción
+    HAL_UART_Receive_IT(&huart2, &rxData, 1);
+  }
+}
+
+/* --- Callback EXTI para botones (se ejecuta en contexto de ISR) --- */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+  uint32_t now = HAL_GetTick();
+
+  if (GPIO_Pin == GPIO_PIN_0) // Botón Jugador 1 (PA0)
+  {
+    // bloquear hasta que termine el semáforo
+    if (!semaforoFinalizado) return;
+
+    // antirrebote por software
+    if (now - lastPressJ1 < DEBOUNCE_MS) return;
+    lastPressJ1 = now;
+
+    // actualizar contador (0..9)
+    contadorJ1 = (contadorJ1 + 1) % 10;
+    mostrarContadorJ1(contadorJ1);
+
+    // indicar que se debe enviar mensaje por UART desde el main
+    snprintf(uartMsgBuf, sizeof(uartMsgBuf), "Jugador1: %d\r\n", contadorJ1);
+    flagSendMsgJ1 = 1;
+  }
+  else if (GPIO_Pin == GPIO_PIN_1) // Botón Jugador 2 (PA1) - listo para usar en Parte C
+  {
+    if (!semaforoFinalizado) return;
+    if (now - lastPressJ2 < DEBOUNCE_MS) return;
+    lastPressJ2 = now;
+    // por ahora no se hace más (puedes implementar contadorJ2)
+    snprintf(uartMsgBuf, sizeof(uartMsgBuf), "Jugador2 pulsado (pendiente Parte C)\r\n");
+    flagSendMsgJ1 = 1; // usamos misma flag para enviar texto desde main
+  }
+}
+
+
+/* USER CODE END 0 */
+
+/**
+  * @brief  The application entry point.
+  * @retval int
+  */
+int main(void)
+{
+
+  /* USER CODE BEGIN 1 */
+
+  /* USER CODE END 1 */
+
+  /* MCU Configuration--------------------------------------------------------*/
+
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
+
+  /* USER CODE BEGIN Init */
+
+  /* USER CODE END Init */
+
+  /* Configure the system clock */
+  SystemClock_Config();
+
+  /* USER CODE BEGIN SysInit */
+
+  /* USER CODE END SysInit */
+
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  MX_USART2_UART_Init();
+  /* USER CODE BEGIN 2 */
+  /* Mensaje inicial y arrancar recepción UART en modo interrupción */
+    const char *welcome = "Esperando 'S' por UART para iniciar... \r\n";
+    HAL_UART_Transmit(&huart2, (uint8_t *)welcome, strlen(welcome), HAL_MAX_DELAY);
+
+    /* arrancar recepción de 1 byte por IT (callback HAL_UART_RxCpltCallback) */
+    HAL_UART_Receive_IT(&huart2, &rxData, 1);
+
+
+  /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
+  while (1)
+  {
+	  /* Si la ISR de UART marcó startGame, llamamos al semáforo (bloqueante) */
+	      if (startGame)
+	      {
+	        startGame = 0;
+	        iniciarSemaforo();
+
+	        /* informar por UART que empezó el juego */
+	        const char *msg = "Semaforo completado - Juego activo. Botones habilitados.\r\n";
+	        HAL_UART_Transmit(&huart2, (uint8_t *)msg, strlen(msg), 200);
+	      }
+
+	      /* Enviar mensajes que se generaron en ISR (evita usar UART en ISR) */
+	      if (flagSendMsgJ1)
+	      {
+	        flagSendMsgJ1 = 0;
+	        HAL_UART_Transmit(&huart2, (uint8_t *)uartMsgBuf, strlen(uartMsgBuf), 200);
+	      }
+
+	      /* Aquí podrías añadir lógica extra (chequear ganador, reinicios, etc.) */
+
+	      /* Pequeña pausa para no bloquear al sistema */
+	      HAL_Delay(1);
+	    }
+}
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
+
+  /* USER CODE END 3 */
